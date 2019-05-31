@@ -1,25 +1,167 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
 output: 
-  html_document:
-    keep_md: true
+html_document:
+keep_md: true
 ---
 
 
-## Loading and preprocessing the data
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+For this project, we use some libraries for our processing.
+
+## Loading required library
+```{r}
+library(dplyr)    #This library is used for filtering, or grouping data
+library(lattice)  #This library is used for plotting
+```
+## A - Loading and preprocessing the data
+The repository of the project contains the data in zip file. In case the folder does not contains the data file, we downloaded it from the web.
+
+### 1. Loading and unzip the data
+```{r}
+fileName <- "activity.zip"
+if(!file.exists(fileName)){
+  dataUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+  download.file(dataUrl, destfile = fileName, method = "curl")
+}
+#Unzip the file
+unzip(fileName)
+activities <- read.csv("activity.csv")
+## The next line will help us get inside of the data
+# Display some part of the data
+head(activities)
+#Get the structure of the data
+str(activities)
+#Get the summary of the data
+summary(activities)
+```
+
+### 2. Preprocessing the data
+From the data structure we see that the date column is treated as factor, in this phase, we will convert the factor to date.
+```{r}
+activities$date <- as.Date(activities$date)
+#check the class again
+class(activities$date)
+```
+
+## B - What is mean total number of steps taken per day?
+### 1. The total number of steps taken per day
+After we compute the sum by day, the result will be displayed
+```{r}
+totalStepByDay <- tapply(activities$steps, activities$date, sum, na.rm = TRUE )
+
+#We display the 6 first elements of the sum
+head(data.frame(date = names(totalStepByDay), values = totalStepByDay), 3)
+```
+
+### 2. Histogram of the total number of steps taken each day
+```{r}
+histogram(totalStepByDay, xlab="Total Steps by day",  col = "seagreen")
+```
+
+### 3. Calculate and report the mean and median of the total number of steps taken per day
+* Calculate and report the mean of the total number of steps taken per day
+```{r}
+mean(totalStepByDay, na.rm = TRUE)
+```
+* Calculate and report the median of the total number of steps taken per day
+```{r}
+median (totalStepByDay, na.rm = TRUE)
+```
+
+## C - What is the average daily activity pattern?
+### 1. Time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r}
+intervalMean <- tapply(activities$steps, activities$interval, mean, na.rm = TRUE)
+
+#the plot
+plot(names(intervalMean), intervalMean, type="l", xlab = "Interval of 5 min", ylab = "Average number of steps", col = "seagreen")
+```
+
+###2. Which interval, on average across all the days in the dataset, contains the maximum number of steps?
+The max value
+```{r}
+#The max value 
+max(intervalMean)
+```
+
+The interval with the max value is 
+```{r}
+names(which.max(intervalMean))
+```
+
+## D - Imputing missing values
+
+### 1. Calculate and report the total number of missing values in the dataset
+```{r}
+sum(is.na(activities$steps))
+```
+
+### 2. Devise a strategy for filling in all of the missing values in the dataset
+Looking at the data, we find that some date like "2012-10-01" does not have any data. So the strategy we choose is to ose the overall mean of the data set to fill the missing values instead of using the mean by day to fill the missing values.
+
+### 3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+In this step we first compute the overall mean and then we replace the NA with the overall mean
+```{r}
+#compute the mean
+overAllMean <- mean(activities$steps, na.rm = TRUE)
+#create new dataset
+activitiesFilled <- activities
+#fill the missing data
+activitiesFilled$steps[which(is.na(activitiesFilled$steps))] <- overAllMean
+#display the first 3 element of new dataset
+head(activitiesFilled, 3)
+```
+
+### 4. What is the impact of imputing missing data on the estimates of the total daily number of steps?
+* Make a histogram of the total number of steps taken each day
+```{r}
+newTotalStepByDay <- tapply(activitiesFilled$steps, activitiesFilled$date, sum)
+histogram(newTotalStepByDay, xlab="Total Steps by day", col = "seagreen")
+```
+
+* Calculate and report the mean of the total number of steps taken per day
+```{r}
+mean(newTotalStepByDay)
+```
+* Calculate and report the median of the total number of steps taken per day
+```{r}
+median (newTotalStepByDay)
+```
+
+Because we take into consideration the days with missing values when computing the mean and median at the first time, filling the missing values has a limited implact on the mean and the median
+
+## E - Are there differences in activity patterns between weekdays and weekends?
+### 1. Create a new factor variable in the dataset with two levels: "weekday" and "weekend"
+We use the variable wday from POSIXl. This value indicate the days from 0 to 6. So 0 and 6 are week-end.
+We use weekend in the new variable when the wday of the POSIXlt is 0 or 5 and weekday otherwise
+```{r}
+activitiesFilled <-  mutate(activitiesFilled, days = ifelse(as.POSIXlt(date)$wday > 0 & as.POSIXlt(date)$wday < 6, "weekday", "weekend"))
+head(activitiesFilled, 3)
+```
+
+### 2. Make a panel plot containing a time series plot of the 5-minute interval (x-axis) and the average number of steps taken 
+
+We proceed by extracting the data for weekday and for weekend, we compute the average number by interval and the result is plotted
+```{r}
+weekDayData <- activitiesFilled %>% filter(days == "weekday")
+weekDayMean <- tapply(weekDayData$steps, weekDayData$interval, mean)
 
 
+weekEndData <- activitiesFilled %>% filter(days == "weekend") 
+weekEndMean <- tapply(weekEndData$steps, weekEndData$interval, mean)
 
-## What is mean total number of steps taken per day?
+#finalData <- data.frame(names(weekDayMean), weekday = weekDayMean, weekend = weekEndMean)
 
+par(mfrow=c(2,1))
+plot(names(weekDayMean),weekDayMean,  type="l", main = "Weekdays", xlab = "Interval of 5 min", ylab = "Average number of steps", col = "seagreen")
+plot(names(weekEndMean),weekEndMean,  type="l", main = "Weekends", xlab = "Interval of 5 min", ylab = "Average number of steps",col = "seagreen")
 
+```
 
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+We perform a clean up by removing all variable
+```{r}
+rm(list = ls())
+```
